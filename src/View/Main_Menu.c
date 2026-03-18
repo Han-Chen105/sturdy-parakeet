@@ -1,7 +1,7 @@
 /*
 * Copyright(C), 2007-2008, XUPT Univ.	 
 * File name: Main_Menu.c			 	 
-* Description : TTMS 系统主菜单	
+* Description : TTMS 系统锟斤拷锟剿碉拷	
 * Author:   XUPT  		 
 * Version:  v.1 	 
 * Da
@@ -13,7 +13,7 @@
 
 #include "../View/Studio_UI.h"
 
-//系统主菜单 
+//系统锟斤拷锟剿碉拷 
 void Main_Menu(void) {
 	char choice;
 	do { 
@@ -36,7 +36,7 @@ void Main_Menu(void) {
 		case 's':
 			Studio_UI_MgtEntry();
 			break;
-/*		case 'P':
+		case 'P':
 		case 'p':
 			Play_UI_MgtEntry(0);
 			break;
@@ -59,7 +59,7 @@ void Main_Menu(void) {
 		case 'A':
 		case 'a':
 			Account_UI_MgtEntry();
-			break;*/
+			break;
 		}
 	} while ('E' != choice && 'e' != choice);
 }
