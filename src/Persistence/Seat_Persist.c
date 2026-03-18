@@ -11,6 +11,7 @@
 #include "Seat_Persist.h"
 #include "../Service/Seat.h"
 #include "../Common/List.h"
+#include "EntityKey_Persist.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include<unistd.h>
@@ -29,7 +30,20 @@ static const char SEAT_KEY_NAME[] = "Seat";
 */ 
 int Seat_Perst_Insert(seat_t *data) {   
 	assert(NULL!=data);
-	return 0;
+	long key = EntKey_Perst_GetNewKeys(SEAT_KEY_NAME, 1);
+	if (key <= 0)
+		return 0;
+	data->id = (int)key;
+
+	FILE *fp = fopen(SEAT_DATA_FILE, "ab");
+	if (NULL == fp) {
+		printf("Cannot open file %s!\n", SEAT_DATA_FILE);
+		return 0;
+	}
+
+	int rtn = (int)fwrite(data, sizeof(seat_t), 1, fp);
+	fclose(fp);
+	return rtn;
 }
 
 /*
@@ -39,10 +53,38 @@ int Seat_Perst_Insert(seat_t *data) {
 返 回 值：整型，表示成功添加一批座位的个数。
 */
 int Seat_Perst_InsertBatch(seat_list_t list) {
-	seat_node_t *p;
 	assert(NULL!=list);
+	if (List_IsEmpty(list))
+		return 0;
 
-	return 0;
+	// 为链表中每个座位分配一段连续主键
+	int count = 0;
+	seat_node_t *p = NULL;
+	List_ForEach(list, p) {
+		count++;
+	}
+	long startKey = EntKey_Perst_GetNewKeys(SEAT_KEY_NAME, count);
+	if (startKey <= 0)
+		return 0;
+
+	FILE *fp = fopen(SEAT_DATA_FILE, "ab");
+	if (NULL == fp) {
+		printf("Cannot open file %s!\n", SEAT_DATA_FILE);
+		return 0;
+	}
+
+	int inserted = 0;
+	long key = startKey;
+	List_ForEach(list, p) {
+		p->data.id = (int)key++;
+		if (fwrite(&(p->data), sizeof(seat_t), 1, fp))
+			inserted++;
+		else
+			break;
+	}
+	fclose(fp);
+
+	return inserted;
 }
 
 /*
@@ -53,7 +95,26 @@ int Seat_Perst_InsertBatch(seat_list_t list) {
 */
 int Seat_Perst_Update(const seat_t *seatdata) {
 	assert(NULL!=seatdata);
-	return 0;
+	FILE *fp = fopen(SEAT_DATA_FILE, "rb+");
+	if (NULL == fp) {
+		printf("Cannot open file %s!\n", SEAT_DATA_FILE);
+		return 0;
+	}
+
+	seat_t buf;
+	int found = 0;
+	while (!feof(fp)) {
+		if (fread(&buf, sizeof(seat_t), 1, fp)) {
+			if (buf.id == seatdata->id) {
+				fseek(fp, -((int)sizeof(seat_t)), SEEK_CUR);
+				fwrite(seatdata, sizeof(seat_t), 1, fp);
+				found = 1;
+				break;
+			}
+		}
+	}
+	fclose(fp);
+	return found;
 
 }
 
@@ -64,8 +125,37 @@ int Seat_Perst_Update(const seat_t *seatdata) {
 返 回 值：整型，表示是否成功删除了座位的标志。
 */
 int Seat_Perst_DeleteByID(int ID) {
-	
-	return 0;
+	if (rename(SEAT_DATA_FILE, SEAT_DATA_TEMP_FILE) < 0) {
+		// 原文件不存在
+		return 0;
+	}
+
+	FILE *fpSour = fopen(SEAT_DATA_TEMP_FILE, "rb");
+	if (NULL == fpSour) {
+		return 0;
+	}
+
+	FILE *fpTarg = fopen(SEAT_DATA_FILE, "wb");
+	if (NULL == fpTarg) {
+		fclose(fpSour);
+		return 0;
+	}
+
+	seat_t buf;
+	int found = 0;
+	while (!feof(fpSour)) {
+		if (fread(&buf, sizeof(seat_t), 1, fpSour)) {
+			if (ID == buf.id) {
+				found = 1;
+				continue;
+			}
+			fwrite(&buf, sizeof(seat_t), 1, fpTarg);
+		}
+	}
+	fclose(fpTarg);
+	fclose(fpSour);
+	remove(SEAT_DATA_TEMP_FILE);
+	return found;
 }
 
 /*
@@ -75,8 +165,36 @@ int Seat_Perst_DeleteByID(int ID) {
 返 回 值：整型，表示是否成功删除了座位的标志。
 */ 
 int Seat_Perst_DeleteAllByRoomID(int roomID) {
-	
-	return 0;
+	if (rename(SEAT_DATA_FILE, SEAT_DATA_TEMP_FILE) < 0) {
+		return 0;
+	}
+
+	FILE *fpSour = fopen(SEAT_DATA_TEMP_FILE, "rb");
+	if (NULL == fpSour) {
+		return 0;
+	}
+
+	FILE *fpTarg = fopen(SEAT_DATA_FILE, "wb");
+	if (NULL == fpTarg) {
+		fclose(fpSour);
+		return 0;
+	}
+
+	seat_t buf;
+	int deleted = 0;
+	while (!feof(fpSour)) {
+		if (fread(&buf, sizeof(seat_t), 1, fpSour)) {
+			if (roomID == buf.roomID) {
+				deleted++;
+				continue;
+			}
+			fwrite(&buf, sizeof(seat_t), 1, fpTarg);
+		}
+	}
+	fclose(fpTarg);
+	fclose(fpSour);
+	remove(SEAT_DATA_TEMP_FILE);
+	return deleted;
 }
 
 /*
@@ -86,8 +204,25 @@ int Seat_Perst_DeleteAllByRoomID(int roomID) {
 返 回 值：整型，表示是否成功载入了座位的标志。
 */
 int Seat_Perst_SelectByID(int ID, seat_t *buf) {
-	
-	return 0;
+	assert(NULL!=buf);
+
+	FILE *fp = fopen(SEAT_DATA_FILE, "rb");
+	if (NULL == fp)
+		return 0;
+
+	seat_t data;
+	int found = 0;
+	while (!feof(fp)) {
+		if (fread(&data, sizeof(seat_t), 1, fp)) {
+			if (ID == data.id) {
+				*buf = data;
+				found = 1;
+				break;
+			}
+		}
+	}
+	fclose(fp);
+	return found;
 }
 
 /*
@@ -97,8 +232,32 @@ int Seat_Perst_SelectByID(int ID, seat_t *buf) {
 返 回 值：整型，成功载入座位的个数。
 */
 int Seat_Perst_SelectAll(seat_list_t list) {
-	
-	return 0;
+	assert(NULL!=list);
+	seat_node_t *newNode;
+	seat_t data;
+	int recCount = 0;
+
+	List_Free(list, seat_node_t);
+
+	FILE *fp = fopen(SEAT_DATA_FILE, "rb");
+	if (NULL == fp) {
+		return 0;
+	}
+
+	while (!feof(fp)) {
+		if (fread(&data, sizeof(seat_t), 1, fp)) {
+			newNode = (seat_node_t*)malloc(sizeof(seat_node_t));
+			if (!newNode) {
+				printf("Warning, Memory OverFlow!!!\n");
+				break;
+			}
+			newNode->data = data;
+			List_AddTail(list, newNode);
+			recCount++;
+		}
+	}
+	fclose(fp);
+	return recCount;
 }
 
 /*
@@ -108,6 +267,32 @@ int Seat_Perst_SelectAll(seat_list_t list) {
 返 回 值：整型，表示成功载入了演出厅座位的个数。
 */
 int Seat_Perst_SelectByRoomID(seat_list_t list, int roomID) {
+	assert(NULL!=list);
+	seat_node_t *newNode;
+	seat_t data;
+	int recCount = 0;
 
-	return 0;
+	List_Free(list, seat_node_t);
+
+	FILE *fp = fopen(SEAT_DATA_FILE, "rb");
+	if (NULL == fp) {
+		return 0;
+	}
+
+	while (!feof(fp)) {
+		if (fread(&data, sizeof(seat_t), 1, fp)) {
+			if (data.roomID != roomID)
+				continue;
+			newNode = (seat_node_t*)malloc(sizeof(seat_node_t));
+			if (!newNode) {
+				printf("Warning, Memory OverFlow!!!\n");
+				break;
+			}
+			newNode->data = data;
+			List_AddTail(list, newNode);
+			recCount++;
+		}
+	}
+	fclose(fp);
+	return recCount;
 }

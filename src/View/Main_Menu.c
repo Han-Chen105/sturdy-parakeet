@@ -1,7 +1,7 @@
 /*
 * Copyright(C), 2007-2008, XUPT Univ.	 
 * File name: Main_Menu.c			 	 
-* Description : TTMS 系统锟斤拷锟剿碉拷	
+* Description : TTMS 系统主菜单	
 * Author:   XUPT  		 
 * Version:  v.1 	 
 * Da
@@ -12,8 +12,14 @@
 #include <stdio.h>
 
 #include "../View/Studio_UI.h"
+#include "../View/Play_UI.h"
+#include "../View/Schedule_UI.h"
+#include "../View/Sale_UI.h"
+#include "../View/Queries_UI.h"
+#include "../View/SalesAnalysis_UI.h"
+#include "../View/Account_UI.h"
 
-//系统锟斤拷锟剿碉拷 
+//系统主菜单 
 void Main_Menu(void) {
 	char choice;
 	do { 
@@ -21,6 +27,7 @@ void Main_Menu(void) {
 		printf("**************** Theater Ticket Management System ****************\n");
 		printf("[S]tudio Management.\n");
 		printf("[P]lay Management.\n");
+		printf("S[c]hedule Management.\n");
 		printf("[T]icket Sale.\n");
 		printf("[R]eturn Ticket.\n");
 		printf("[Q]ueries\n");
@@ -40,6 +47,10 @@ void Main_Menu(void) {
 		case 'p':
 			Play_UI_MgtEntry(0);
 			break;
+		case 'C':
+		case 'c':
+			Schedule_UI_MgtEntry();
+			break;
 		case 'Q':
 		case 'q':
 			Queries_Menu();
@@ -54,7 +65,7 @@ void Main_Menu(void) {
 			break;
 		case 'N':
 		case 'n':
-			SalesAanalysis_UI_MgtEntry();
+			SalesAnalysis_UI_MgtEntry();
 			break;
 		case 'A':
 		case 'a':

@@ -13,6 +13,7 @@
 #include "../Common/List.h"
 #include "../Service/Studio.h"
 #include "../Service/Seat.h"
+#include "../View/Seat_UI.h"
 
 
 static const int STUDIO_PAGE_SIZE = 5;
@@ -103,7 +104,7 @@ void Studio_UI_MgtEntry(void) {
 		case 'S':
 			printf("Input the ID:");
 			scanf("%d", &id);
-			//Seat_UI_MgtEntry(id);
+			Seat_UI_MgtEntry(id);
 			paging.totalRecords = Studio_Srv_FetchAll(head);
 			List_Paging(head, paging, studio_node_t)
 			;
@@ -142,8 +143,8 @@ int Studio_UI_Add(void) {
 		printf("****************  Add New Projection Room  ****************\n");
 		printf("-------------------------------------------------------\n");
 		printf("Room Name:");
-		fflush(stdin);
-		gets(rec.name);
+		// read up to 29 chars (studio_t.name is 30 including '\0')
+		scanf(" %29[^\n]", rec.name);
 		printf("Row Count of Seats:");
 		scanf("%d", &(rec.rowsCount));
 		printf("Column Count of Seats:");
@@ -189,8 +190,7 @@ int Studio_UI_Modify(int id) {
 	printf("-------------------------------------------------------\n");
 	printf("Room ID:%d\n", rec.id);
 	printf("Room Name[%s]:", rec.name);
-	fflush(stdin);
-	gets(rec.name);
+	scanf(" %29[^\n]", rec.name);
 
 	List_Init(list, seat_node_t);
 	seatcount = Seat_Srv_FetchByRoomID(list, rec.id);

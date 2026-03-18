@@ -10,8 +10,8 @@
 
 #ifndef SEAT_UI_H_
 #define SEAT_UI_H_
-#include "../Common/list.h"
-#include "../Service/seat.h"
+#include "../Common/List.h"
+#include "../Service/Seat.h"
 
 //标识符：TTMS_SCU_Seat_UI_MgtEnt 
 //功能：管理座位界面
@@ -27,15 +27,15 @@ seat_status_t Seat_UI_Char2Status(char statusChar);
 
 //标识符：TTMS_SCU_Seat_UI_Add
 //功能：添加新座位界面 
-int Seat_UI_Add(seat_list_t list, int roomID, int rowsCount,int colsCount);
+int Seat_UI_Add(seat_list_t list, int roomID, int row, int column);
 
 //标识符：TTMS_SCU_Seat_UI_Mod 
 //功能：修改座位界面
-int Seat_UI_Modify(seat_list_t list, int rowsCount, int colsCount);
+int Seat_UI_Modify(seat_list_t list, int row, int column);
 
 //标识符：TTMS_SCU_Seat_UI_Del
 //功能：根删除座位界面
-int Seat_UI_Delete(seat_list_t list, int rowsCount, int colsCount);
+int Seat_UI_Delete(seat_list_t list, int row, int column);
 
 
 #endif /* SEAT_UI_H_ */

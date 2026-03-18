@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include "../Common/List.h"
 #include "Seat.h"
+#include "../Persistence/Seat_Persist.h"
+#include <assert.h>
 
 /*
 函数功能：用于添加一个新座位数据。
@@ -18,8 +20,9 @@
 返 回 值：整型，表示是否成功添加了座位的标志。
 */
 int Seat_Srv_Add(const seat_t *data){
-	// 请补充完整
-       return 0;
+	assert(NULL != data);
+	seat_t tmp = *data;
+	return Seat_Perst_Insert(&tmp);
 }
 
 /*
@@ -28,8 +31,8 @@ int Seat_Srv_Add(const seat_t *data){
 返 回 值：整型，表示是否成功添加了批量座位的标志。
 */
 int Seat_Srv_AddBatch(seat_list_t list){
-	// 请补充完整
-       return 0;
+	assert(NULL != list);
+	return Seat_Perst_InsertBatch(list);
 }
 
 /*
@@ -38,8 +41,8 @@ int Seat_Srv_AddBatch(seat_list_t list){
 返 回 值：整型，表示是否成功修改了座位的标志。
 */
 int Seat_Srv_Modify(const seat_t *data){
-	// 请补充完整
-       return 0;
+	assert(NULL != data);
+	return Seat_Perst_Update(data);
 }
 
 /*
@@ -48,8 +51,7 @@ int Seat_Srv_Modify(const seat_t *data){
 返 回 值：整型，表示是否成功删除了座位的标志。
 */
 int Seat_Srv_DeleteByID(int ID){
-	// 请补充完整
-       return 1;
+	return Seat_Perst_DeleteByID(ID);
 }
 
 /*
@@ -58,8 +60,7 @@ int Seat_Srv_DeleteByID(int ID){
 返 回 值：整型，表示是否成功获取了座位的标志。
 */
 int Seat_Srv_FetchByID(int ID, seat_t *buf){
-	// 请补充完整
-       return 0;
+	return Seat_Perst_SelectByID(ID, buf);
 }
 
 /*
@@ -68,8 +69,7 @@ int Seat_Srv_FetchByID(int ID, seat_t *buf){
 返 回 值：整型，表示是否成功删除了演出厅所有座位的标志。
 */
 inline int Seat_Srv_DeleteAllByRoomID(int roomID){
-	// 请补充完整
-       return 0;
+	return Seat_Perst_DeleteAllByRoomID(roomID);
 }
 
 /*
@@ -78,8 +78,7 @@ inline int Seat_Srv_DeleteAllByRoomID(int roomID){
 返 回 值：整型，表示是否成功初始化了演出厅的所有座位。
 */
 int Seat_Srv_FetchByRoomID(seat_list_t list, int roomID){
-       // 请补充完整
-       return 0;
+	return Seat_Perst_SelectByRoomID(list, roomID);
 }
 
 /*
@@ -89,8 +88,33 @@ int Seat_Srv_FetchByRoomID(seat_list_t list, int roomID){
 */
 int Seat_Srv_FetchValidByRoomID(seat_list_t list, int roomID)
 {
-       // 请补充完整
-       return 0;
+	assert(NULL != list);
+	seat_list_t tmp;
+	List_Init(tmp, seat_node_t);
+
+	int total = Seat_Perst_SelectByRoomID(tmp, roomID);
+	if (total <= 0) {
+		List_Destroy(tmp, seat_node_t);
+		return 0;
+	}
+
+	List_Free(list, seat_node_t);
+
+	int valid = 0;
+	seat_node_t *p = NULL;
+	List_ForEach(tmp, p) {
+		if (p->data.status != SEAT_NONE) {
+			seat_node_t *node = (seat_node_t*)malloc(sizeof(seat_node_t));
+			if (!node)
+				break;
+			node->data = p->data;
+			List_AddTail(list, node);
+			valid++;
+		}
+	}
+
+	List_Destroy(tmp, seat_node_t);
+	return valid;
 }
 
 /*
@@ -100,8 +124,24 @@ int Seat_Srv_FetchValidByRoomID(seat_list_t list, int roomID)
 */
 int Seat_Srv_RoomInit(seat_list_t list, int roomID, int rowsCount,
 		int colsCount) {
-	// 请补充完整
-       return 0;
+	assert(NULL != list);
+	List_Free(list, seat_node_t);
+
+	for (int r = 1; r <= rowsCount; r++) {
+		for (int c = 1; c <= colsCount; c++) {
+			seat_node_t *node = (seat_node_t*)malloc(sizeof(seat_node_t));
+			if (!node)
+				return 0;
+			node->data.id = 0;
+			node->data.roomID = roomID;
+			node->data.row = r;
+			node->data.column = c;
+			node->data.status = SEAT_GOOD;
+			List_AddTail(list, node);
+		}
+	}
+
+	return rowsCount * colsCount;
 }
 
 /*
@@ -110,7 +150,29 @@ int Seat_Srv_RoomInit(seat_list_t list, int roomID, int rowsCount,
 返 回 值：无。
 */
 void Seat_Srv_SortSeatList(seat_list_t list) {
-       // 请补充完整
+	assert(NULL != list);
+	if (List_IsEmpty(list))
+		return;
+
+	seat_list_t sorted;
+	List_Init(sorted, seat_node_t);
+
+	seat_node_t *p = list->next;
+	while (p != list) {
+		seat_node_t *next = p->next;
+		List_DelNode(p);
+		Seat_Srv_AddToSoftedList(sorted, p);
+		p = next;
+	}
+
+	// 把sorted拼回list
+	if (!List_IsEmpty(sorted)) {
+		list->next = sorted->next;
+		list->prev = sorted->prev;
+		sorted->next->prev = list;
+		sorted->prev->next = list;
+	}
+	free(sorted);
 }
 
 /*
@@ -119,7 +181,19 @@ void Seat_Srv_SortSeatList(seat_list_t list) {
 返 回 值：无。
 */
 void Seat_Srv_AddToSoftedList(seat_list_t list, seat_node_t *node) {
-       // 请补充完整
+	assert(NULL != list);
+	assert(NULL != node);
+
+	seat_node_t *pos = list->next;
+	while (pos != list) {
+		if (node->data.row < pos->data.row ||
+			(node->data.row == pos->data.row && node->data.column < pos->data.column)) {
+			List_InsertBefore(pos, node);
+			return;
+		}
+		pos = pos->next;
+	}
+	List_AddTail(list, node);
 }
 
 /*
@@ -129,8 +203,13 @@ void Seat_Srv_AddToSoftedList(seat_list_t list, seat_node_t *node) {
 返 回 值：为seat_node_t指针，表示获取到的座位数据。
 */
 seat_node_t * Seat_Srv_FindByRowCol(seat_list_t list, int row, int column) {
-       // 请补充完整
-       return NULL;
+	assert(NULL != list);
+	seat_node_t *p = NULL;
+	List_ForEach(list, p) {
+		if (p->data.row == row && p->data.column == column)
+			return p;
+	}
+	return NULL;
 }
 
 /*
@@ -139,6 +218,11 @@ seat_node_t * Seat_Srv_FindByRowCol(seat_list_t list, int row, int column) {
 返 回 值：seat_node_t类型，表示获取的座位数据。
 */
 seat_node_t * Seat_Srv_FindByID(seat_list_t list, int rowID) {
-       // 请补充完整
-       return NULL;
+	assert(NULL != list);
+	seat_node_t *p = NULL;
+	List_ForEach(list, p) {
+		if (p->data.id == rowID)
+			return p;
+	}
+	return NULL;
 }

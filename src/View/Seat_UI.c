@@ -14,6 +14,7 @@
 #include "../Service/Studio.h"
 #include "../Common/List.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 /*
 表识符：TTMS_SCU_Seat_UI_S2C 
@@ -23,7 +24,17 @@
 */
 inline char Seat_UI_Status2Char(seat_status_t status) {
 
-	return "#";
+	(void)status;
+	switch (status) {
+	case SEAT_NONE:
+		return '.';
+	case SEAT_GOOD:
+		return 'O';
+	case SEAT_BROKEN:
+		return 'X';
+	default:
+		return '?';
+	}
 }
 
 /*
@@ -33,7 +44,21 @@ inline char Seat_UI_Status2Char(seat_status_t status) {
 返 回 值：seat_status_t类型，表示座位的状态。
 */
 inline seat_status_t Seat_UI_Char2Status(char statusChar) {
-	return SEAT_NONE;
+	switch (statusChar) {
+	case '.':
+	case '0':
+		return SEAT_NONE;
+	case 'O':
+	case 'o':
+	case '1':
+		return SEAT_GOOD;
+	case 'X':
+	case 'x':
+	case '9':
+		return SEAT_BROKEN;
+	default:
+		return SEAT_NONE;
+	}
 }
 
 /*
@@ -43,7 +68,86 @@ inline seat_status_t Seat_UI_Char2Status(char statusChar) {
 返 回 值：无。
 */ 
 void Seat_UI_MgtEntry(int roomID) {
+	studio_t studio;
+	if (!Studio_Srv_FetchByID(roomID, &studio)) {
+		printf("The room does not exist!\nPress [Enter] key to return!\n");
+		getchar();
+		return;
+	}
 
+	seat_list_t list;
+	List_Init(list, seat_node_t);
+
+	int seatCount = Seat_Srv_FetchByRoomID(list, roomID);
+	if (seatCount <= 0) {
+		Seat_Srv_RoomInit(list, roomID, studio.rowsCount, studio.colsCount);
+		Seat_Srv_AddBatch(list);
+		seatCount = Seat_Srv_FetchByRoomID(list, roomID);
+	}
+	Seat_Srv_SortSeatList(list);
+
+	char choice;
+	do {
+		printf("\n=======================================================\n");
+		printf("********************* Seat Management ******************\n");
+		printf("Room ID:%d  Name:%s  Rows:%d  Cols:%d\n", studio.id, studio.name,
+				studio.rowsCount, studio.colsCount);
+		printf("Legend: O=good  X=broken  .=none\n");
+		printf("-------------------------------------------------------\n");
+
+		for (int r = 1; r <= studio.rowsCount; r++) {
+			printf("%2d | ", r);
+			for (int c = 1; c <= studio.colsCount; c++) {
+				seat_node_t *node = Seat_Srv_FindByRowCol(list, r, c);
+				char ch = node ? Seat_UI_Status2Char(node->data.status) : '?';
+				printf("%c ", ch);
+			}
+			printf("\n");
+		}
+
+		printf("-------------------------------------------------------\n");
+		printf("[M]odify seat | [R]efresh | [Q]uit\n");
+		printf("Your Choice:");
+		fflush(stdin);
+		scanf("%c", &choice);
+		fflush(stdin);
+
+		switch (choice) {
+		case 'm':
+		case 'M': {
+			int row, col;
+			char st;
+			printf("Input row (1-%d):", studio.rowsCount);
+			scanf("%d", &row);
+			printf("Input column (1-%d):", studio.colsCount);
+			scanf("%d", &col);
+			printf("Input status (O/X/.):");
+			fflush(stdin);
+			scanf("%c", &st);
+			fflush(stdin);
+
+			seat_node_t *node = Seat_Srv_FindByRowCol(list, row, col);
+			if (!node) {
+				printf("Seat not found.\n");
+				break;
+			}
+			node->data.status = Seat_UI_Char2Status(st);
+			if (Seat_Srv_Modify(&(node->data))) {
+				printf("Updated.\n");
+			} else {
+				printf("Update failed.\n");
+			}
+			break;
+		}
+		case 'r':
+		case 'R':
+			Seat_Srv_FetchByRoomID(list, roomID);
+			Seat_Srv_SortSeatList(list);
+			break;
+		}
+	} while (choice != 'q' && choice != 'Q');
+
+	List_Destroy(list, seat_node_t);
 }
 
 /*
@@ -54,8 +158,14 @@ void Seat_UI_MgtEntry(int roomID) {
 返 回 值：整型，表示是否成功添加了座位的标志。
 */
 int Seat_UI_Add(seat_list_t list, int roomID, int row, int column) {  //输入一个座位
-
-	return 0;
+	(void)list;
+	seat_t rec;
+	rec.id = 0;
+	rec.roomID = roomID;
+	rec.row = row;
+	rec.column = column;
+	rec.status = SEAT_GOOD;
+	return Seat_Srv_Add(&rec);
 }
 
 /*
@@ -65,8 +175,17 @@ int Seat_UI_Add(seat_list_t list, int roomID, int row, int column) {  //输入一个
 返 回 值：整型，表示是否成功修改了座位的标志。
 */
 int Seat_UI_Modify(seat_list_t list, int row, int column) {
+	seat_node_t *node = Seat_Srv_FindByRowCol(list, row, column);
+	if (!node)
+		return 0;
 
-	return 0;
+	char st;
+	printf("Input status for (%d,%d) (O/X/.):", row, column);
+	fflush(stdin);
+	scanf("%c", &st);
+	fflush(stdin);
+	node->data.status = Seat_UI_Char2Status(st);
+	return Seat_Srv_Modify(&(node->data));
 
 }
 
@@ -77,8 +196,12 @@ int Seat_UI_Modify(seat_list_t list, int row, int column) {
 返 回 值：整型，表示是否成功删除了座位的标志。
 */
 int Seat_UI_Delete(seat_list_t list, int row, int column) {
+	seat_node_t *node = Seat_Srv_FindByRowCol(list, row, column);
+	if (!node)
+		return 0;
 
-	return 0;
+	node->data.status = SEAT_NONE;
+	return Seat_Srv_Modify(&(node->data));
 
 }
 
